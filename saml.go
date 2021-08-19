@@ -43,12 +43,15 @@ type SAMLServiceProvider struct {
 	IdentityProviderIssuer     string
 
 	AssertionConsumerServiceURL string
+	ProtocolBinding             string
 	ServiceProviderSLOURL       string
 	ServiceProviderIssuer       string
 
 	SignAuthnRequests              bool
 	SignAuthnRequestsAlgorithm     string
 	SignAuthnRequestsCanonicalizer dsig.Canonicalizer
+
+	ForceAuthn bool
 
 	// RequestedAuthnContext allows service providers to require that the identity
 	// provider use specific authentication mechanisms. Leaving this unset will

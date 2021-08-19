@@ -41,10 +41,17 @@ func (sp *SAMLServiceProvider) buildAuthnRequest(includeSig bool) (*etree.Docume
 
 	authnRequest.CreateAttr("ID", "_"+arId.String())
 	authnRequest.CreateAttr("Version", "2.0")
-	authnRequest.CreateAttr("ProtocolBinding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST")
+	if len(sp.ProtocolBinding) > 0 {
+		authnRequest.CreateAttr("ProtocolBinding", sp.ProtocolBinding)
+	} else {
+		authnRequest.CreateAttr("ProtocolBinding", BindingHttpPost)
+	}
 	authnRequest.CreateAttr("AssertionConsumerServiceURL", sp.AssertionConsumerServiceURL)
 	authnRequest.CreateAttr("IssueInstant", sp.Clock.Now().UTC().Format(issueInstantFormat))
 	authnRequest.CreateAttr("Destination", sp.IdentityProviderSSOURL)
+	if sp.ForceAuthn {
+		authnRequest.CreateAttr("ForceAuthn", "true")
+	}
 
 	// NOTE(russell_h): In earlier versions we mistakenly sent the IdentityProviderIssuer
 	// in the AuthnRequest. For backwards compatibility we will fall back to that
