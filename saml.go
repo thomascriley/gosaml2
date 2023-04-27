@@ -52,8 +52,15 @@ type SAMLServiceProvider struct {
 	SignAuthnRequestsAlgorithm     string
 	SignAuthnRequestsCanonicalizer dsig.Canonicalizer
 
+	// ForceAuthn attribute in authentication request forces the identity provider to
+	// re-authenticate the presenter directly rather than rely on a previous security context.
+	// NOTE: If both ForceAuthn and IsPassive are "true", the identity provider MUST NOT freshly
+	// authenticate the presenter unless the constraints of IsPassive can be met.
 	ForceAuthn bool
-
+	// IsPassive attribute in authentication request requires that the identity provider and the
+	// user agent itself MUST NOT visibly take control of the user interface from the requester
+	// and interact with the presenter in a noticeable fashion.
+	IsPassive bool
 	// RequestedAuthnContext allows service providers to require that the identity
 	// provider use specific authentication mechanisms. Leaving this unset will
 	// permit the identity provider to choose the auth method. To maximize compatibility
@@ -68,8 +75,14 @@ type SAMLServiceProvider struct {
 	SkipSignatureValidation bool
 	AllowMissingAttributes  bool
 	Clock                   *dsig.Clock
-	signingContextMu        sync.RWMutex
-	signingContext          *dsig.SigningContext
+
+	// MaximumDecompressedBodySize is the maximum size to which a compressed
+	// SAML document will be decompressed. If a compresed document is exceeds
+	// this size during decompression an error will be returned.
+	MaximumDecompressedBodySize int64
+
+	signingContextMu sync.RWMutex
+	signingContext   *dsig.SigningContext
 }
 
 // RequestedAuthnContext controls which authentication mechanisms are requested of
@@ -115,20 +128,22 @@ func (sp *SAMLServiceProvider) Metadata() (*types.EntityDescriptor, error) {
 			Use: "encryption",
 			KeyInfo: dsigtypes.KeyInfo{
 				X509Data: dsigtypes.X509Data{
-					X509Certificates: []dsigtypes.X509Certificate{dsigtypes.X509Certificate{
+					X509Certificates: []dsigtypes.X509Certificate{{
 						Data: base64.StdEncoding.EncodeToString(encryptionCertBytes),
 					}},
 				},
 			},
 			EncryptionMethods: []types.EncryptionMethod{
 				{Algorithm: types.MethodAES128GCM},
+				{Algorithm: types.MethodAES192GCM},
+				{Algorithm: types.MethodAES256GCM},
 				{Algorithm: types.MethodAES128CBC},
 				{Algorithm: types.MethodAES256CBC},
 			},
 		})
 	}
 	return &types.EntityDescriptor{
-		ValidUntil: time.Now().UTC().Add(time.Hour * 24 * 7), // 7 days
+		ValidUntil: sp.Clock.Now().UTC().Add(time.Hour * 24 * 7), // 7 days
 		EntityID:   sp.ServiceProviderIssuer,
 		SPSSODescriptor: &types.SPSSODescriptor{
 			AuthnRequestsSigned:        sp.SignAuthnRequests,
@@ -155,12 +170,12 @@ func (sp *SAMLServiceProvider) MetadataWithSLO(validityHours int64) (*types.Enti
 	}
 
 	if validityHours <= 0 {
-		//By default let's keep it to 7 days.
+		// By default let's keep it to 7 days.
 		validityHours = int64(time.Hour * 24 * 7)
 	}
 
 	return &types.EntityDescriptor{
-		ValidUntil: time.Now().UTC().Add(time.Duration(validityHours)), // default 7 days
+		ValidUntil: sp.Clock.Now().UTC().Add(time.Duration(validityHours)), // default 7 days
 		EntityID:   sp.ServiceProviderIssuer,
 		SPSSODescriptor: &types.SPSSODescriptor{
 			AuthnRequestsSigned:        sp.SignAuthnRequests,
@@ -171,7 +186,7 @@ func (sp *SAMLServiceProvider) MetadataWithSLO(validityHours int64) (*types.Enti
 					Use: "signing",
 					KeyInfo: dsigtypes.KeyInfo{
 						X509Data: dsigtypes.X509Data{
-							X509Certificates: []dsigtypes.X509Certificate{dsigtypes.X509Certificate{
+							X509Certificates: []dsigtypes.X509Certificate{{
 								Data: base64.StdEncoding.EncodeToString(signingCertBytes),
 							}},
 						},
@@ -181,13 +196,15 @@ func (sp *SAMLServiceProvider) MetadataWithSLO(validityHours int64) (*types.Enti
 					Use: "encryption",
 					KeyInfo: dsigtypes.KeyInfo{
 						X509Data: dsigtypes.X509Data{
-							X509Certificates: []dsigtypes.X509Certificate{dsigtypes.X509Certificate{
+							X509Certificates: []dsigtypes.X509Certificate{{
 								Data: base64.StdEncoding.EncodeToString(encryptionCertBytes),
 							}},
 						},
 					},
 					EncryptionMethods: []types.EncryptionMethod{
 						{Algorithm: types.MethodAES128GCM, DigestMethod: nil},
+						{Algorithm: types.MethodAES192GCM, DigestMethod: nil},
+						{Algorithm: types.MethodAES256GCM, DigestMethod: nil},
 						{Algorithm: types.MethodAES128CBC, DigestMethod: nil},
 						{Algorithm: types.MethodAES256CBC, DigestMethod: nil},
 					},

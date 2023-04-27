@@ -130,47 +130,6 @@ func TestRequestedAuthnContextIncluded(t *testing.T) {
 	require.Equal(t, el.Text(), AuthnContextPasswordProtectedTransport)
 }
 
-func TestProtocolBindingOmitted(t *testing.T) {
-	spURL := "https://sp.test"
-	sp := SAMLServiceProvider{
-		AssertionConsumerServiceURL: spURL,
-		AudienceURI:                 spURL,
-		IdentityProviderIssuer:      spURL,
-		IdentityProviderSSOURL:      "https://idp.test/saml/sso",
-	}
-
-	request, err := sp.BuildAuthRequest()
-	require.NoError(t, err)
-
-	doc := etree.NewDocument()
-	err = doc.ReadFromString(request)
-	require.NoError(t, err)
-
-	attr := doc.Root().SelectAttrValue("ProtocolBinding", "")
-	require.Equal(t, BindingHttpPost, attr)
-}
-
-func TestProtocolBindingIncluded(t *testing.T) {
-	spURL := "https://sp.test"
-	sp := SAMLServiceProvider{
-		AssertionConsumerServiceURL: spURL,
-		AudienceURI:                 spURL,
-		IdentityProviderIssuer:      spURL,
-		IdentityProviderSSOURL:      "https://idp.test/saml/sso",
-		ProtocolBinding:             BindingHttpRedirect,
-	}
-
-	request, err := sp.BuildAuthRequest()
-	require.NoError(t, err)
-
-	doc := etree.NewDocument()
-	err = doc.ReadFromString(request)
-	require.NoError(t, err)
-
-	attr := doc.Root().SelectAttrValue("ProtocolBinding", "")
-	require.Equal(t, BindingHttpRedirect, attr)
-}
-
 func TestForceAuthnOmitted(t *testing.T) {
 	spURL := "https://sp.test"
 	sp := SAMLServiceProvider{
@@ -209,6 +168,48 @@ func TestForceAuthnIncluded(t *testing.T) {
 	require.NoError(t, err)
 
 	attr := doc.Root().SelectAttr("ForceAuthn")
+	require.NotNil(t, attr)
+	require.Equal(t, "true", attr.Value)
+}
+
+func TestIsPassiveOmitted(t *testing.T) {
+	spURL := "https://sp.test"
+	sp := SAMLServiceProvider{
+		AssertionConsumerServiceURL: spURL,
+		AudienceURI:                 spURL,
+		IdentityProviderIssuer:      spURL,
+		IdentityProviderSSOURL:      "https://idp.test/saml/sso",
+	}
+
+	request, err := sp.BuildAuthRequest()
+	require.NoError(t, err)
+
+	doc := etree.NewDocument()
+	err = doc.ReadFromString(request)
+	require.NoError(t, err)
+
+	attr := doc.Root().SelectAttr("IsPassive")
+	require.Nil(t, attr)
+}
+
+func TestIsPassiveIncluded(t *testing.T) {
+	spURL := "https://sp.test"
+	sp := SAMLServiceProvider{
+		AssertionConsumerServiceURL: spURL,
+		AudienceURI:                 spURL,
+		IdentityProviderIssuer:      spURL,
+		IdentityProviderSSOURL:      "https://idp.test/saml/sso",
+		IsPassive:                   true,
+	}
+
+	request, err := sp.BuildAuthRequest()
+	require.NoError(t, err)
+
+	doc := etree.NewDocument()
+	err = doc.ReadFromString(request)
+	require.NoError(t, err)
+
+	attr := doc.Root().SelectAttr("IsPassive")
 	require.NotNil(t, attr)
 	require.Equal(t, "true", attr.Value)
 }

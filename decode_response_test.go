@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/russellhaering/goxmldsig"
-	"github.com/stretchr/testify/require"
 	rtvalidator "github.com/mattermost/xml-roundtrip-validator"
+	dsig "github.com/russellhaering/goxmldsig"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -169,7 +169,7 @@ func TestDecodeColonsInLocalNames(t *testing.T) {
 		t.Skip()
 	}
 
-	_, _, err := parseResponse([]byte(`<x::Root/>`))
+	_, _, err := parseResponse([]byte(`<x::Root/>`), 0)
 	require.Error(t, err)
 }
 
@@ -180,7 +180,7 @@ func TestDecodeDoubleColonInjectionAttackResponse(t *testing.T) {
 		t.Skip()
 	}
 
-	_, _, err := parseResponse([]byte(doubleColonAssertionInjectionAttackResponse))
+	_, _, err := parseResponse([]byte(doubleColonAssertionInjectionAttackResponse), 0)
 	require.Error(t, err)
 }
 
@@ -194,7 +194,7 @@ func TestMalFormedInput(t *testing.T) {
 	}
 
 	sp := &SAMLServiceProvider{
-		Clock: dsig.NewFakeClock(clockwork.NewFakeClockAt(time.Date(2019, 8, 12, 12, 00, 52, 718, time.UTC))),
+		Clock:                       dsig.NewFakeClock(clockwork.NewFakeClockAt(time.Date(2019, 8, 12, 12, 00, 52, 718, time.UTC))),
 		AssertionConsumerServiceURL: "https://saml2.test.astuart.co/sso/saml2",
 		SignAuthnRequests:           true,
 		IDPCertificateStore:         &certStore,
@@ -203,4 +203,27 @@ func TestMalFormedInput(t *testing.T) {
 	base64Input := base64.StdEncoding.EncodeToString([]byte(badInput))
 	_, err = sp.RetrieveAssertionInfo(base64Input)
 	require.Errorf(t, err, "parent is nil")
+}
+
+func TestCompressionBombInput(t *testing.T) {
+	bs, err := ioutil.ReadFile("./testdata/saml_compressed.post")
+	require.NoError(t, err, "couldn't read compressed post")
+
+	block, _ := pem.Decode([]byte(oktaCert))
+
+	idpCert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err, "couldn't parse okta cert pem block")
+
+	sp := SAMLServiceProvider{
+		AssertionConsumerServiceURL: "https://f1f51ddc.ngrok.io/api/sso/saml2/acs/58cafd0573d4f375b8e70e8e",
+		SPKeyStore:                  dsig.TLSCertKeyStore(cert),
+		IDPCertificateStore: &dsig.MemoryX509CertificateStore{
+			Roots: []*x509.Certificate{idpCert},
+		},
+		Clock:                       dsig.NewFakeClock(clockwork.NewFakeClockAt(time.Date(2017, 3, 17, 20, 00, 0, 0, time.UTC))),
+		MaximumDecompressedBodySize: 2048,
+	}
+
+	_, err = sp.RetrieveAssertionInfo(string(bs))
+	require.Error(t, err, "error validating response: deflated response exceeds maximum size of 2048 bytes")
 }

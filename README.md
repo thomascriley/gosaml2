@@ -32,5 +32,4 @@ The following identity providers have been tested:
 * Shibboleth
 * Ipsilon
 * OneLogin
-* Microsoft Azure AD
-* Microsoft Active Directory Federation Services (AD FS)
+* Azure Active Directory (Azure AD)

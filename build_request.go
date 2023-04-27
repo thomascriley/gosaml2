@@ -53,6 +53,9 @@ func (sp *SAMLServiceProvider) buildAuthnRequest(includeSig bool) (*etree.Docume
 	if sp.ForceAuthn {
 		authnRequest.CreateAttr("ForceAuthn", "true")
 	}
+	if sp.IsPassive {
+		authnRequest.CreateAttr("IsPassive", "true")
+	}
 
 	// NOTE(russell_h): In earlier versions we mistakenly sent the IdentityProviderIssuer
 	// in the AuthnRequest. For backwards compatibility we will fall back to that
